@@ -3,16 +3,18 @@
 import type { CSSProperties } from "react";
 import type { PublicPostit } from "@/lib/types";
 
+export type NoteAnim = "stick" | "fall" | "wobble" | "drop";
+
 type Props = {
   note: PublicPostit;
   size?: "wall" | "large";
-  anim?: "stick" | "fall";
+  anim?: NoteAnim;
   hidden?: boolean;
   onTap?: () => void;
-  onSettled?: () => void;
+  onAnimDone?: (name: string) => void;
 };
 
-export default function Note({ note, size = "wall", anim, hidden, onTap, onSettled }: Props) {
+export default function Note({ note, size = "wall", anim, hidden, onTap, onAnimDone }: Props) {
   const style = {
     "--paper": note.color,
     "--r": `${note.rotation}deg`,
@@ -38,7 +40,7 @@ export default function Note({ note, size = "wall", anim, hidden, onTap, onSettl
         onTap();
       }}
       onAnimationEnd={(e) => {
-        if (e.target === e.currentTarget && e.animationName === "stick") onSettled?.();
+        if (e.target === e.currentTarget) onAnimDone?.(e.animationName);
       }}
     >
       <div className="note-body">

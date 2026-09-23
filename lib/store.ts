@@ -3,11 +3,14 @@ import { promises as fs } from "fs";
 import path from "path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { PostitRecord } from "./types";
+import { DEFAULT_WALL_MESSAGES } from "./easter";
 
 export interface PostitStore {
   /** 아직 벽에 붙어 있는 포스트잇 */
   listOnWall(now: Date): Promise<PostitRecord[]>;
   insert(p: PostitRecord): Promise<void>;
+  /** 이스터에그: 떨어진 포스트잇 뒤 벽에 적힌 문구들 */
+  listWallMessages(): Promise<string[]>;
 }
 
 // ── 로컬 개발용: data/postits.json ─────────────────────────────
@@ -37,6 +40,10 @@ class FileStore implements PostitStore {
     });
     this.queue = run.catch(() => {});
     return run;
+  }
+
+  async listWallMessages() {
+    return DEFAULT_WALL_MESSAGES;
   }
 }
 
@@ -106,6 +113,16 @@ class SupabaseStore implements PostitStore {
     const { error } = await this.db.from("postits").insert(row);
     if (error) throw error;
   }
+
+  async listWallMessages() {
+    const { data, error } = await this.db
+      .from("easter_messages")
+      .select("message")
+      .eq("active", true)
+      .order("id");
+    if (error || !data?.length) return DEFAULT_WALL_MESSAGES;
+    return data.map((r: { message: string }) => r.message);
+  }
 }
 
 let store: PostitStore | null = null;
@@ -113,7 +130,8 @@ let store: PostitStore | null = null;
 export function getStore(): PostitStore {
   if (store) return store;
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // 새 Supabase 프로젝트는 "secret key"(sb_secret_...), 예전 프로젝트는 service_role 키
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   store = url && key
     ? new SupabaseStore(createClient(url, key, { auth: { persistSession: false } }))
     : new FileStore();
