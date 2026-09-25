@@ -5,6 +5,10 @@
 
 기획서: [PLAN.md](./PLAN.md)
 
+- 사이트: https://falling-postits-k95144270-1538s-projects.vercel.app
+- Vercel 프로젝트: `falling-postits` (서버 함수 지역: 서울 `icn1`)
+- Supabase 프로젝트: `falling-postits` (서울 `ap-northeast-2`)
+
 ## 지금 되는 것 (1단계)
 
 - 나무색 크라프트 종이 벽 하나, 모두가 같은 벽을 본다
