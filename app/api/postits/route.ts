@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPostit, listWall, MAX_AUTHOR, MAX_TEXT } from "@/lib/postits";
+import { StoreNotConfiguredError } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,14 @@ export async function POST(req: Request) {
   if (author.length > MAX_AUTHOR)
     return NextResponse.json({ error: `이름은 ${MAX_AUTHOR}자까지예요.` }, { status: 400 });
 
-  const postit = await createPostit(text, author || null);
-  return NextResponse.json({ postit }, { status: 201 });
+  try {
+    const postit = await createPostit(text, author || null);
+    return NextResponse.json({ postit }, { status: 201 });
+  } catch (e) {
+    if (e instanceof StoreNotConfiguredError) {
+      return NextResponse.json({ error: e.message }, { status: 503 });
+    }
+    console.error(e);
+    return NextResponse.json({ error: "붙이지 못했어요. 잠시 뒤에 다시 해 주세요." }, { status: 500 });
+  }
 }

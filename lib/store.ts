@@ -125,6 +125,25 @@ class SupabaseStore implements PostitStore {
   }
 }
 
+// ── 배포됐는데 Supabase가 아직 없을 때: 벽은 비어 보이고, 붙이기는 안내 문구로 거절 ──
+export class StoreNotConfiguredError extends Error {
+  constructor() {
+    super("아직 벽이 준비 중이에요. 조금만 기다려 주세요.");
+  }
+}
+
+class NotConfiguredStore implements PostitStore {
+  async listOnWall() {
+    return [];
+  }
+  async insert(): Promise<void> {
+    throw new StoreNotConfiguredError();
+  }
+  async listWallMessages() {
+    return DEFAULT_WALL_MESSAGES;
+  }
+}
+
 let store: PostitStore | null = null;
 
 export function getStore(): PostitStore {
@@ -132,8 +151,14 @@ export function getStore(): PostitStore {
   const url = process.env.SUPABASE_URL;
   // 새 Supabase 프로젝트는 "secret key"(sb_secret_...), 예전 프로젝트는 service_role 키
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  store = url && key
-    ? new SupabaseStore(createClient(url, key, { auth: { persistSession: false } }))
-    : new FileStore();
+  if (url && key) {
+    store = new SupabaseStore(createClient(url, key, { auth: { persistSession: false } }));
+  } else if (process.env.VERCEL) {
+    // Vercel에서는 파일에 저장할 수 없다
+    console.warn("SUPABASE_URL / SUPABASE_SECRET_KEY 가 설정되지 않았습니다.");
+    store = new NotConfiguredStore();
+  } else {
+    store = new FileStore();
+  }
   return store;
 }
