@@ -80,48 +80,37 @@ const fromRow = (r: Row): PostitRecord => ({
   removed: r.removed,
 });
 
+// 테이블에 직접 접근하지 않고 DB 함수(supabase/functions.sql)만 호출한다.
+// 함수가 값을 검사하므로 공개용(publishable) 키로도 안전하다.
 class SupabaseStore implements PostitStore {
   constructor(private db: SupabaseClient) {}
 
-  async listOnWall(now: Date) {
-    const { data, error } = await this.db
-      .from("postits")
-      .select("*")
-      .eq("removed", false)
-      .gt("fall_at", now.toISOString())
-      .order("created_at");
+  async listOnWall() {
+    const { data, error } = await this.db.rpc("wall_postits");
     if (error) throw error;
     return (data as Row[]).map(fromRow);
   }
 
   async insert(p: PostitRecord) {
-    const row: Row = {
-      id: p.id,
-      kind: p.kind,
-      text: p.text,
-      author: p.author,
-      color: p.color,
-      rotation: p.rotation,
-      pos_x: p.x,
-      pos_y: p.y,
-      weather_code: p.weatherCode,
-      humidity: p.humidity,
-      created_at: p.createdAt,
-      fall_at: p.fallAt,
-      removed: p.removed,
-    };
-    const { error } = await this.db.from("postits").insert(row);
+    const { error } = await this.db.rpc("insert_postit", {
+      p_id: p.id,
+      p_text: p.text,
+      p_author: p.author,
+      p_color: p.color,
+      p_rotation: p.rotation,
+      p_x: p.x,
+      p_y: p.y,
+      p_weather_code: p.weatherCode,
+      p_humidity: p.humidity,
+      p_fall_at: p.fallAt,
+    });
     if (error) throw error;
   }
 
   async listWallMessages() {
-    const { data, error } = await this.db
-      .from("easter_messages")
-      .select("message")
-      .eq("active", true)
-      .order("id");
+    const { data, error } = await this.db.rpc("wall_messages");
     if (error || !data?.length) return DEFAULT_WALL_MESSAGES;
-    return data.map((r: { message: string }) => r.message);
+    return data as string[];
   }
 }
 
@@ -149,13 +138,16 @@ let store: PostitStore | null = null;
 export function getStore(): PostitStore {
   if (store) return store;
   const url = process.env.SUPABASE_URL;
-  // 새 Supabase 프로젝트는 "secret key"(sb_secret_...), 예전 프로젝트는 service_role 키
-  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // 공개용 키(sb_publishable_...)면 충분하다. secret/service_role 키도 쓸 수 있다.
+  const key =
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (url && key) {
     store = new SupabaseStore(createClient(url, key, { auth: { persistSession: false } }));
   } else if (process.env.VERCEL) {
     // Vercel에서는 파일에 저장할 수 없다
-    console.warn("SUPABASE_URL / SUPABASE_SECRET_KEY 가 설정되지 않았습니다.");
+    console.warn("SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY 가 설정되지 않았습니다.");
     store = new NotConfiguredStore();
   } else {
     store = new FileStore();
